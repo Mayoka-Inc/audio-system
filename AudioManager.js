@@ -9,22 +9,43 @@ class MusicDirector {
         this.isPlaying = false;
         this.nextNoteTime = 0;
         this.currentNote = 0;
-        this.timerID = null;
         
         // A minor pentatonic bass notes
         this.bassNotes = [55.00, 65.41, 73.42, 82.41]; // A1, C2, D2, E2
+
+        this._initWorker();
+    }
+
+    _initWorker() {
+        const workerCode = `
+            let timerID = null;
+            self.onmessage = (e) => {
+                if (e.data === 'start') {
+                    if (timerID) return;
+                    timerID = setInterval(() => postMessage('tick'), 25);
+                } else if (e.data === 'stop') {
+                    if (timerID) {
+                        clearInterval(timerID);
+                        timerID = null;
+                    }
+                }
+            };
+        `;
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        this.worker = new Worker(URL.createObjectURL(blob));
+        this.worker.onmessage = () => this.schedule();
     }
 
     start() {
         if (this.isPlaying) return;
         this.isPlaying = true;
         this.nextNoteTime = this.ctx.currentTime;
-        this.schedule();
+        this.worker.postMessage('start');
     }
 
     stop() {
         this.isPlaying = false;
-        clearTimeout(this.timerID);
+        this.worker.postMessage('stop');
     }
 
     setSpeed(speedFactor) {
@@ -36,7 +57,6 @@ class MusicDirector {
             this.playNote(this.currentNote, this.nextNoteTime);
             this.advanceNote();
         }
-        this.timerID = setTimeout(() => this.schedule(), 25);
     }
 
     advanceNote() {
