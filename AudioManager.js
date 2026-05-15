@@ -212,7 +212,9 @@ export class AudioManager {
      */
     startEngine() {
         if (this.ctx.state === 'suspended') {
-            this.ctx.resume();
+            this.ctx.resume().catch(err => {
+                console.error("Failed to resume audio context for engine:", err);
+            });
         }
 
         if (this.engineOsc) return;
@@ -232,6 +234,9 @@ export class AudioManager {
         lfoGain.connect(this.engineOsc.frequency);
         lfo.start();
 
+        // Store LFO to allow proper disposal later
+        this.engineLFO = lfo;
+
         this.engineGain.gain.setValueAtTime(0.05, this.ctx.currentTime);
         
         this.engineOsc.connect(this.engineGain);
@@ -239,6 +244,26 @@ export class AudioManager {
         this.engineGain.connect(this.reverb); // Engine hum also rings in the tunnel
 
         this.engineOsc.start();
+    }
+
+    /**
+     * Stops the engine sound loop and cleans up nodes.
+     */
+    stopEngine() {
+        if (this.engineOsc) {
+            this.engineOsc.stop();
+            this.engineOsc.disconnect();
+            this.engineOsc = null;
+        }
+        if (this.engineLFO) {
+            this.engineLFO.stop();
+            this.engineLFO.disconnect();
+            this.engineLFO = null;
+        }
+        if (this.engineGain) {
+            this.engineGain.disconnect();
+            this.engineGain = null;
+        }
     }
 
     /**
